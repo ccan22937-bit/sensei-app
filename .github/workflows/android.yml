@@ -14,13 +14,16 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
 
       - name: Setup Java JDK
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
+
+      - name: Setup Android SDK Environment
+        uses: android-actions/setup-android@v3
 
       - name: Clean Old Android & Install Capacitor
         run: |
@@ -36,7 +39,7 @@ jobs:
 
       - name: Init Capacitor & Add Android Platform
         run: |
-          npx cap init "Sensei" "com.sensei.bingelingo" --web-dir "www" || true
+          npx cap init "Sensei" "com.sensei.app" --web-dir "www" || true
           npx cap add android
           npx cap sync android
 
@@ -44,7 +47,7 @@ jobs:
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleDebug --stacktrace
+          ./gradlew assembleDebug --no-daemon
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
