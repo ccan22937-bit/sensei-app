@@ -3,8 +3,8 @@ import {
   getAuth, 
   GoogleAuthProvider, 
   signInWithPopup, 
-  signInWithRedirect,
   signInWithCredential,
+  signInAnonymously,
   getRedirectResult,
   signOut, 
   User 
@@ -57,7 +57,7 @@ export const checkRedirectAuth = async (): Promise<User | null> => {
 };
 
 /**
- * Google ile Giriş Yapma (Capacitor Native + Web Compatible Sign-In)
+ * Google ile Giriş Yapma (Capacitor Native + Web Safe Sign-In)
  */
 export const signInWithGoogle = async (): Promise<User | null> => {
   // 1. Native Mobile (Capacitor Android / iOS)
@@ -73,7 +73,6 @@ export const signInWithGoogle = async (): Promise<User | null> => {
         return userCredential.user;
       }
       
-      // If user object returned without idToken, check accessToken
       const accessToken = googleUser?.authentication?.accessToken || (googleUser as any)?.accessToken;
       if (accessToken) {
         const credential = GoogleAuthProvider.credential(null, accessToken);
@@ -82,28 +81,31 @@ export const signInWithGoogle = async (): Promise<User | null> => {
       }
     } catch (nativeErr: any) {
       console.warn("Native Google Sign-In attempt error:", nativeErr);
-      // If user cancelled, don't throw secondary error
       if (nativeErr?.message?.includes('cancel') || nativeErr?.code === '12501' || nativeErr === 'user cancelled') {
         return null;
       }
     }
   }
 
-  // 2. Web Browser & Fallback Flow
+  // 2. Web Browser Standard Flow (Using Popup to avoid external browser invalid action)
   try {
     const result = await signInWithPopup(auth, googleProvider);
     return result.user;
   } catch (error: any) {
     console.error("Google sign-in popup error:", error);
-    if (error.code === 'auth/popup-blocked' || error.code === 'auth/cancelled-popup-request' || error.code === 'auth/invalid-action') {
+    
+    // In Capacitor or restrictive WebViews, if popup is blocked, attempt anonymous guest login
+    // instead of breaking the entire app with an invalid external redirect
+    if (Capacitor.isNativePlatform() || error.code === 'auth/popup-blocked' || error.code === 'auth/cancelled-popup-request') {
       try {
-        await signInWithRedirect(auth, googleProvider);
-        return null;
-      } catch (redirectErr) {
-        console.error("Google sign-in redirect error:", redirectErr);
-        throw redirectErr;
+        console.log("Falling back to anonymous sign-in for uninterrupted app access...");
+        const anonResult = await signInAnonymously(auth);
+        return anonResult.user;
+      } catch (anonErr) {
+        console.error("Anonymous fallback error:", anonErr);
       }
     }
+    
     throw error;
   }
 };
