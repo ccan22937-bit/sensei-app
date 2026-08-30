@@ -34,8 +34,9 @@ jobs:
           mkdir -p www
           cp -r dist/* www/ || true
 
-      - name: Add Fresh Android Platform & Sync
+      - name: Init Capacitor & Add Android Platform
         run: |
+          npx cap init "Sensei" "com.sensei.bingelingo" --web-dir "www" || true
           npx cap add android
           npx cap sync android
 
