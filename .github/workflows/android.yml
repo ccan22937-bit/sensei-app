@@ -11,34 +11,38 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
       - name: Setup Java JDK
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
-
-      - name: Fix Dependencies & Clean Hatalı Paketler
+      - name: Clean Old Android & Install Capacitor
         run: |
-          # Bulunan tüm build.gradle dosyalarından litertlm bağımlılığını sil
-          find . -name "build.gradle*" -exec sed -i '/litertlm/d' {} +
-          
-          # android dizinini kontrol et ve gradlew oluştur
-          if [ -d "android" ]; then
-            cd android
-          fi
-          if [ ! -f "gradlew" ]; then
-            gradle wrapper
-          fi
-          chmod +x gradlew
+          rm -rf android
+          npm ci || npm install
+          npm install @capacitor/core @capacitor/cli @capacitor/android --save-dev
+
+      - name: Build Web App & Assets
+        run: |
+          npm run build || npx vite build
+          mkdir -p www
+          cp -r dist/* www/ || true
+
+      - name: Add Fresh Android Platform & Sync
+        run: |
+          npx cap add android
+          npx cap sync android
 
       - name: Build Android APK
         run: |
-          if [ -d "android" ]; then
-            cd android
-          fi
+          cd android
+          chmod +x gradlew
           ./gradlew assembleDebug --stacktrace
 
       - name: Upload APK Artifact
