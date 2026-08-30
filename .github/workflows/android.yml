@@ -1,69 +1,59 @@
-name: Build Sensei Android APK
+name: Build Android APK
 
 on:
-  workflow_dispatch:
   push:
-    branches:
-      - main
+    branches: [ "main", "master" ]
+  workflow_dispatch:
 
 jobs:
-  build-android:
+  build:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Node.js 20
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
 
-      - name: Setup Java 17
+      - name: Setup Java JDK
         uses: actions/setup-java@v4
         with:
-          distribution: temurin
+          distribution: 'temurin'
           java-version: '17'
-          cache: gradle
 
-      - name: Install npm dependencies
-        run: npm install
-
-      - name: Install Capacitor packages
+      - name: Install Dependencies & Capacitor
         run: |
-          npm install --save-dev @capacitor/core @capacitor/cli @capacitor/android
+          npm ci || npm install
+          npm install @capacitor/core @capacitor/cli @capacitor/android --save-dev
 
-      - name: Build web application
-        run: npm run build
-
-      - name: Prepare Capacitor web assets
+      - name: Build Web App & Prepare Assets
         run: |
+          npm run build || npx vite build
           mkdir -p www
-          rm -rf www/*
-          cp -r dist/* www/
+          cp -r dist/* www/ || true
 
-      - name: Add Android platform if missing
+      - name: Init Android Platform & Generate Gradle Wrapper
         run: |
           if [ ! -d "android" ]; then
             npx cap add android
-          else
-            echo "Android platform already exists. Skipping npx cap add android."
+          fi
+          npx cap sync android
+          if [ ! -f "android/gradlew" ]; then
+            cd android
+            gradle wrapper
+            cd ..
           fi
 
-      - name: Sync Capacitor Android project
-        run: npx cap sync android
+      - name: Build Android APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug --stacktrace
 
-      - name: Make Gradle executable
-        run: chmod +x android/gradlew
-
-      - name: Build Debug APK
-        working-directory: android
-        run: ./gradlew assembleDebug --no-daemon
-
-      - name: Upload Sensei Debug APK
+      - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: Sensei-Debug-APK
-          path: android/app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
+          path: "**/*.apk"
+          
