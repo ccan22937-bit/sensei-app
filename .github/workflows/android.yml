@@ -23,7 +23,7 @@ jobs:
           java-version: '17'
 
       - name: Install Dependencies
-        run: npm install --legacy-peer-deps --force
+        run: npm install --legacy-peer-deps --no-audit --fund false
 
       - name: Build Web App
         run: npm run build || npx vite build || true
