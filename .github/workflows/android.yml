@@ -28,8 +28,11 @@ jobs:
           npm install -g @capacitor/cli @capacitor/core @capacitor/android
           npx cap add android || true
 
-      - name: Build Web App
-        run: npm run build || npx vite build
+      - name: Build Web App & Prepare Assets
+        run: |
+          npm run build || npx vite build
+          mkdir -p www
+          cp -r dist/* www/ || true
 
       - name: Sync Capacitor
         run: npx @capacitor/cli sync android
