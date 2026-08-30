@@ -33,16 +33,19 @@ jobs:
           mkdir -p www
           cp -r dist/* www/ || true
 
-      - name: Init Android Platform & Generate Gradle Wrapper
+      - name: Init Android Platform & Inject Maven Repositories
         run: |
           if [ ! -d "android" ]; then
             npx cap add android
           fi
           npx cap sync android
-          if [ ! -f "android/gradlew" ]; then
-            cd android
-            gradle wrapper
-            cd ..
+          
+          # Gradle depolarına google() ve mavenCentral() tanımlarını ekle
+          if [ -f "android/build.gradle" ]; then
+            sed -i 's/repositories {/repositories {\n        google()\n        mavenCentral()\n        maven { url "https:\/\/maven.google.com" }/' android/build.gradle || true
+          fi
+          if [ -f "android/settings.gradle" ]; then
+            sed -i 's/repositories {/repositories {\n        google()\n        mavenCentral()\n        maven { url "https:\/\/maven.google.com" }/' android/settings.gradle || true
           fi
 
       - name: Build Android APK
