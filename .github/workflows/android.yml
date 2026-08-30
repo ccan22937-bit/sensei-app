@@ -22,15 +22,17 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Install Dependencies & Add Capacitor Android
+      - name: Install Dependencies & Capacitor CLI
         run: |
           npm ci || npm install
+          npm install -g @capacitor/cli @capacitor/core @capacitor/android
           npx cap add android || true
 
-      - name: Build Web App & Sync Capacitor
-        run: |
-          npm run build || npx vite build
-          npx cap sync android
+      - name: Build Web App
+        run: npm run build || npx vite build
+
+      - name: Sync Capacitor
+        run: npx @capacitor/cli sync android
 
       - name: Build Android APK
         run: |
