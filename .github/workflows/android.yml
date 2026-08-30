@@ -17,22 +17,23 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
         
-    - name: Grant execute permission for gradlew
+    - name: Find and Build Gradle
       run: |
-        chmod +x android/gradlew || true
-        chmod +x gradlew || true
-
-    - name: Build APK with Gradle
-      run: |
-        if [ -d "android" ]; then
-          cd android && ./gradlew assembleDebug
+        GRADLE_PATH=$(find . -name "gradlew" -type f | head -n 1)
+        if [ -n "$GRADLE_PATH" ]; then
+          DIR=$(dirname "$GRADLE_PATH")
+          echo "Gradle yolu bulundu: $DIR"
+          cd "$DIR"
+          chmod +x gradlew
+          ./gradlew assembleDebug --stacktrace
         else
-          ./gradlew assembleDebug
+          echo "gradlew bulunamadi!"
+          exit 1
         fi
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
         name: app-debug
-        path: "**/build/outputs/apk/debug/*.apk"
+        path: "**/*.apk"
         
