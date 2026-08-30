@@ -24,8 +24,7 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          npm cache clean --force
-          npm install --force
+          npm install --legacy-peer-deps --force
 
       - name: Build Web App
         run: npm run build || npx vite build || true
