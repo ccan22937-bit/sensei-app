@@ -1,51 +1,69 @@
-name: Build Android APK
+name: Build Sensei Android APK
 
 on:
-  push:
-    branches: [ "main", "master" ]
   workflow_dispatch:
+  push:
+    branches:
+      - main
 
 jobs:
-  build:
+  build-android:
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
 
-      - name: Setup Node.js
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
         uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: npm
 
-      - name: Setup Java JDK
+      - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
+          distribution: temurin
           java-version: '17'
+          cache: gradle
 
-      - name: Install Dependencies & Capacitor CLI
-        run: |
-          npm ci || npm install
-          npm install -g @capacitor/cli @capacitor/core @capacitor/android
-          npx cap add android || true
+      - name: Install npm dependencies
+        run: npm install
 
-      - name: Build Web App & Prepare Assets
+      - name: Install Capacitor packages
         run: |
-          npm run build || npx vite build
+          npm install --save-dev @capacitor/core @capacitor/cli @capacitor/android
+
+      - name: Build web application
+        run: npm run build
+
+      - name: Prepare Capacitor web assets
+        run: |
           mkdir -p www
-          cp -r dist/* www/ || true
+          rm -rf www/*
+          cp -r dist/* www/
 
-      - name: Sync Capacitor
-        run: npx @capacitor/cli sync android
-
-      - name: Build Android APK
+      - name: Add Android platform if missing
         run: |
-          cd android
-          chmod +x gradlew
-          ./gradlew assembleDebug --stacktrace
+          if [ ! -d "android" ]; then
+            npx cap add android
+          else
+            echo "Android platform already exists. Skipping npx cap add android."
+          fi
 
-      - name: Upload APK Artifact
+      - name: Sync Capacitor Android project
+        run: npx cap sync android
+
+      - name: Make Gradle executable
+        run: chmod +x android/gradlew
+
+      - name: Build Debug APK
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: Upload Sensei Debug APK
         uses: actions/upload-artifact@v4
         with:
           name: Sensei-Debug-APK
-          path: "**/*.apk"
-          
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
