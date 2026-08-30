@@ -9,7 +9,7 @@ import { SubscriptionScreen } from './screens/SubscriptionScreen';
 import { AdminScreen } from './screens/AdminScreen';
 import { fetchWordData } from './services/geminiService';
 import { Drill, DrillType, WordData } from './types';
-import { auth, signInWithGoogle, logout, db, isUserAppOwner } from './services/firebase';
+import { auth, signInWithGoogle, logout, db, isUserAppOwner, initGoogleAuth, checkRedirectAuth } from './services/firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { Button } from './components/ui/Button';
@@ -325,6 +325,16 @@ export default function App() {
 
   useEffect(() => {
     const isLoggedOut = localStorage.getItem('user_logged_out') === 'true';
+
+    // Initialize native GoogleAuth plugin
+    initGoogleAuth();
+
+    // Check if returning from OAuth redirect
+    checkRedirectAuth().then((redirectUser) => {
+      if (redirectUser && !isLoggedOut) {
+        loadUserData(redirectUser);
+      }
+    });
 
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser && !isLoggedOut) {

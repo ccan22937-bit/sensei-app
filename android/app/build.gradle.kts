@@ -43,6 +43,9 @@ dependencies {
     implementation("com.google.ai.edge.litertlm:litertlm-android:1.0.0")
     implementation("com.google.mediapipe:tasks-genai:0.10.14")
 
+    // Google Play Services Auth (Native Google Sign-In)
+    implementation("com.google.android.gms:play-services-auth:20.7.0")
+
     // Android Core & Coroutines
     implementation("androidx.core:core-ktx:1.12.0")
     implementation("androidx.appcompat:appcompat:1.6.1")
