@@ -11,47 +11,30 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
       - name: Setup Java JDK
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Install Dependencies & Capacitor
-        run: |
-          npm ci || npm install
-          npm install @capacitor/core @capacitor/cli @capacitor/android --save-dev
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
 
-      - name: Build Web App & Prepare Assets
+      - name: Find or Init Gradle Wrapper
         run: |
-          npm run build || npx vite build
-          mkdir -p www
-          cp -r dist/* www/ || true
-
-      - name: Init Android Platform & Inject Maven Repositories
-        run: |
-          if [ ! -d "android" ]; then
-            npx cap add android
+          if [ -d "android" ]; then
+            cd android
           fi
-          npx cap sync android
-          
-          # Gradle depolarına google() ve mavenCentral() tanımlarını ekle
-          if [ -f "android/build.gradle" ]; then
-            sed -i 's/repositories {/repositories {\n        google()\n        mavenCentral()\n        maven { url "https:\/\/maven.google.com" }/' android/build.gradle || true
+          if [ ! -f "gradlew" ]; then
+            gradle wrapper
           fi
-          if [ -f "android/settings.gradle" ]; then
-            sed -i 's/repositories {/repositories {\n        google()\n        mavenCentral()\n        maven { url "https:\/\/maven.google.com" }/' android/settings.gradle || true
-          fi
+          chmod +x gradlew
 
       - name: Build Android APK
         run: |
-          cd android
-          chmod +x gradlew
+          if [ -d "android" ]; then
+            cd android
+          fi
           ./gradlew assembleDebug --stacktrace
 
       - name: Upload APK Artifact
