@@ -3,6 +3,7 @@ import {
   getAuth, 
   GoogleAuthProvider, 
   signInWithPopup, 
+  signInWithRedirect,
   signInWithCredential,
   signInAnonymously,
   getRedirectResult,
@@ -57,10 +58,93 @@ export const checkRedirectAuth = async (): Promise<User | null> => {
 };
 
 /**
- * Google ile Giriş Yapma (Capacitor Native + Web Safe Sign-In)
+ * Helper to authenticate via Android Native SenseiAuth bridge
+ */
+const signInWithAndroidNativeBridge = (): Promise<User | null> => {
+  return new Promise((resolve, reject) => {
+    const senseiAuth = (window as any).SenseiAuth;
+    if (!senseiAuth || typeof senseiAuth.signInWithGoogle !== 'function') {
+      return reject(new Error("SenseiAuth bridge not available"));
+    }
+
+    const timeout = setTimeout(() => {
+      cleanup();
+      reject(new Error("Native Google Sign-In zaman aşımına uğradı."));
+    }, 45000);
+
+    const cleanup = () => {
+      clearTimeout(timeout);
+      delete (window as any).__onNativeGoogleSignInSuccess;
+      delete (window as any).__onNativeGoogleSignInError;
+    };
+
+    (window as any).__onNativeGoogleSignInSuccess = async (data: {
+      idToken?: string;
+      email?: string;
+      displayName?: string;
+      photoUrl?: string;
+    }) => {
+      cleanup();
+      try {
+        if (data?.idToken) {
+          const credential = GoogleAuthProvider.credential(data.idToken);
+          const userCredential = await signInWithCredential(auth, credential);
+          resolve(userCredential.user);
+        } else {
+          const userCredential = await signInAnonymously(auth);
+          resolve(userCredential.user);
+        }
+      } catch (err) {
+        console.error("Firebase signInWithCredential error with native token:", err);
+        try {
+          const anon = await signInAnonymously(auth);
+          resolve(anon.user);
+        } catch (anonErr) {
+          reject(err);
+        }
+      }
+    };
+
+    (window as any).__onNativeGoogleSignInError = (errorMsg: string) => {
+      cleanup();
+      console.warn("Native Google Sign-In error callback:", errorMsg);
+      if (errorMsg?.toLowerCase().includes("iptal") || errorMsg?.toLowerCase().includes("cancel")) {
+        resolve(null);
+      } else {
+        reject(new Error(errorMsg));
+      }
+    };
+
+    try {
+      senseiAuth.signInWithGoogle();
+    } catch (e) {
+      cleanup();
+      reject(e);
+    }
+  });
+};
+
+/**
+ * Google ile Giriş Yapma:
+ * - Mobil APK ortamında (SenseiAuth veya Capacitor) native hesap seçici penceresi açar.
+ * - Web ortamında Popup / Redirect mekanizmasını kullanır.
  */
 export const signInWithGoogle = async (): Promise<User | null> => {
-  // 1. Native Mobile (Capacitor Android / iOS)
+  // 1. Android Native JavascriptInterface Bridge (Highest Priority in APK)
+  if ((window as any).SenseiAuth && typeof (window as any).SenseiAuth.signInWithGoogle === 'function') {
+    try {
+      console.log("Using Android Native SenseiAuth bridge for Google Sign-In...");
+      const user = await signInWithAndroidNativeBridge();
+      if (user) return user;
+    } catch (nativeBridgeErr: any) {
+      console.warn("SenseiAuth native bridge error:", nativeBridgeErr);
+      if (nativeBridgeErr?.message?.includes("iptal") || nativeBridgeErr?.message?.includes("cancel")) {
+        return null;
+      }
+    }
+  }
+
+  // 2. Native Mobile via Capacitor GoogleAuth Plugin
   if (Capacitor.isNativePlatform()) {
     try {
       await initGoogleAuth();
@@ -80,29 +164,28 @@ export const signInWithGoogle = async (): Promise<User | null> => {
         return userCredential.user;
       }
     } catch (nativeErr: any) {
-      console.warn("Native Google Sign-In attempt error:", nativeErr);
+      console.warn("Capacitor Native Google Sign-In attempt error:", nativeErr);
       if (nativeErr?.message?.includes('cancel') || nativeErr?.code === '12501' || nativeErr === 'user cancelled') {
         return null;
       }
     }
   }
 
-  // 2. Web Browser Standard Flow (Using Popup to avoid external browser invalid action)
+  // 3. Web Tarayıcısı (Web Browser Popup & Redirect Flow)
   try {
     const result = await signInWithPopup(auth, googleProvider);
     return result.user;
   } catch (error: any) {
-    console.error("Google sign-in popup error:", error);
+    console.warn("Google sign-in popup error, attempting redirect flow:", error);
     
-    // In Capacitor or restrictive WebViews, if popup is blocked, attempt anonymous guest login
-    // instead of breaking the entire app with an invalid external redirect
-    if (Capacitor.isNativePlatform() || error.code === 'auth/popup-blocked' || error.code === 'auth/cancelled-popup-request') {
+    // Popup engellendiyse veya iframe/tarayıcı kısıtı varsa Redirect akışını başlat
+    if (error.code === 'auth/popup-blocked' || error.code === 'auth/cancelled-popup-request' || error.code === 'auth/popup-closed-by-user') {
       try {
-        console.log("Falling back to anonymous sign-in for uninterrupted app access...");
-        const anonResult = await signInAnonymously(auth);
-        return anonResult.user;
-      } catch (anonErr) {
-        console.error("Anonymous fallback error:", anonErr);
+        await signInWithRedirect(auth, googleProvider);
+        return null;
+      } catch (redirectErr) {
+        console.error("Google sign-in redirect error:", redirectErr);
+        throw redirectErr;
       }
     }
     
@@ -175,6 +258,13 @@ export const logout = async () => {
     localStorage.setItem('user_logged_out', 'true');
     localStorage.removeItem('local_tg_user_id');
     localStorage.removeItem('is_app_owner');
+    if ((window as any).SenseiAuth && typeof (window as any).SenseiAuth.signOut === 'function') {
+      try {
+        (window as any).SenseiAuth.signOut();
+      } catch (e) {
+        console.warn("SenseiAuth signOut error:", e);
+      }
+    }
     await signOut(auth);
   } catch (error) {
     console.error("Error signing out from Google Auth", error);

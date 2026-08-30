@@ -14,14 +14,15 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.sensei.bingelingo.ai.LiteRTLMEngine
 import com.sensei.bingelingo.ai.LiteRTLMBridge
+import com.sensei.bingelingo.auth.NativeAuthBridge
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 /**
  * MainActivity
  * 
- * Host activity providing Android WebView and Storage Access Framework (SAF)
- * for selecting the on-device `gemma3-1b-it-int4.litertlm` file from Download folder.
+ * Host activity providing Android WebView, Storage Access Framework (SAF)
+ * for LiteRT-LM, and Native Google Authentication.
  */
 class MainActivity : AppCompatActivity() {
 
@@ -29,6 +30,7 @@ class MainActivity : AppCompatActivity() {
     lateinit var litertEngine: LiteRTLMEngine
         private set
     private lateinit var litertBridge: LiteRTLMBridge
+    private lateinit var authBridge: NativeAuthBridge
 
     private var fileUploadCallback: ValueCallback<Array<Uri>>? = null
 
@@ -134,9 +136,10 @@ class MainActivity : AppCompatActivity() {
 
         webView = findViewById(R.id.webView)
 
-        // 1. Initialize LiteRT-LM Engine & Bridge
+        // 1. Initialize LiteRT-LM Engine, Bridges & Native Auth
         litertEngine = LiteRTLMEngine(applicationContext)
         litertBridge = LiteRTLMBridge(this, webView, litertEngine)
+        authBridge = NativeAuthBridge(this, webView)
 
         // 2. Configure WebView
         webView.settings.apply {
@@ -173,8 +176,9 @@ class MainActivity : AppCompatActivity() {
         }
         webView.webViewClient = WebViewClient()
 
-        // 3. Bind Official LiteRT-LM JavaScript Interface Bridge
+        // 3. Bind Official LiteRT-LM & Native Auth JavaScript Interface Bridges
         webView.addJavascriptInterface(litertBridge, "LiteRTLM")
+        webView.addJavascriptInterface(authBridge, "SenseiAuth")
 
         // 4. Pre-warm Gemma on GPU if .litertlm is already copied
         lifecycleScope.launch(Dispatchers.IO) {
