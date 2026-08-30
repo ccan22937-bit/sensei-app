@@ -9,31 +9,41 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Set up JDK 17
-      uses: actions/setup@v4
-      with:
-        java-version: '17'
-        distribution: 'temurin'
-        
-    - name: Find and Build Gradle
-      run: |
-        GRADLE_PATH=$(find . -name "gradlew" -type f | head -n 1)
-        if [ -n "$GRADLE_PATH" ]; then
-          DIR=$(dirname "$GRADLE_PATH")
-          echo "Gradle yolu bulundu: $DIR"
-          cd "$DIR"
-          chmod +x gradlew
-          ./gradlew assembleDebug --stacktrace
-        else
-          echo "gradlew bulunamadi!"
-          exit 1
-        fi
+      - uses: actions/checkout@v4
 
-    - name: Upload APK
-      uses: actions/upload-artifact@v4
-      with:
-        name: app-debug
-        path: "**/*.apk"
-        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup Java JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Install Dependencies
+        run: npm ci || npm install
+
+      - name: Build Web App & Sync Capacitor
+        run: |
+          npm run build || npx vite build
+          npx cap sync android || echo "Capacitor sync step"
+
+      - name: Build Android APK
+        run: |
+          if [ -d "android" ]; then
+            cd android
+            chmod +x gradlew
+            ./gradlew assembleDebug --stacktrace
+          else
+            echo "Android klasoru bulunamadi!"
+            exit 1
+          fi
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Sensei-Debug-APK
+          path: "**/*.apk"
+          
