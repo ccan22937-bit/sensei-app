@@ -23,22 +23,25 @@ jobs:
           java-version: '17'
 
       - name: Install Dependencies
-        run: npm install --legacy-peer-deps
+        run: npm install --force
 
-      - name: Build Web Assets
+      - name: Build Web App
         run: npm run build || npx vite build || true
 
       - name: Sync Capacitor Android
-        run: |
-          npx cap sync android || true
+        run: npx cap sync android || true
 
-      - name: Build Android APK
+      - name: Grant Execute Permission to gradlew
         run: |
           cd android
           chmod +x gradlew
+
+      - name: Build Debug APK with Gradle
+        run: |
+          cd android
           ./gradlew assembleDebug --no-daemon
 
-      - name: Upload APK Artifact
+      - name: Upload Debug APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: Sensei-Debug-APK
